@@ -5,39 +5,52 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Watchtower</title>
 <style>
-  :root { --bg:#0f1419; --card:#1a2028; --text:#e6e9ee; --muted:#8b95a3; --up:#3fb950; --down:#f85149; --unk:#8b95a3; --line:#2a323d; }
-  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --card:#fff; --text:#1f2328; --muted:#656d76; --line:#d8dee4; } }
+  :root { --bg:#0d1117; --card:#161b22; --text:#e6edf3; --muted:#8b949e; --up:#3fb950; --down:#f85149; --warn:#d29922; --unk:#484f58; --line:#30363d; --accent:#238636; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --card:#fff; --text:#1f2328; --muted:#656d76; --line:#d0d7de; --unk:#afb8c1; } }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,sans-serif; }
-  main { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
-  h1 { font-size: 22px; margin: 0 0 16px; }
-  .banner { padding:12px 16px; border-radius:8px; margin-bottom:16px; font-weight:600; background:var(--card); border-left:4px solid var(--up); }
-  .banner.bad { border-color: var(--down); }
-  form { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  h1 { font-size: 22px; margin: 0; }
+  header a { color:var(--muted); font-size:13px; }
+  .banner { padding:12px 16px; border-radius:8px; margin-bottom:16px; font-weight:600; background:var(--card); border:1px solid var(--line); border-left:4px solid var(--up); }
+  .banner.bad { border-left-color: var(--down); }
+  form { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
   input, button { font:inherit; padding:8px 10px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--text); }
-  input { flex:1 1 160px; min-width:0; }
-  button { cursor:pointer; background:#238636; border-color:#238636; color:#fff; }
-  button.ghost { background:transparent; color:var(--muted); border-color:var(--line); padding:4px 8px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 16px; margin-bottom:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  input { flex:1 1 150px; min-width:0; }
+  input.narrow { flex:0 1 90px; }
+  input.mid { flex:0 1 170px; }
+  button { cursor:pointer; background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.ghost { background:transparent; color:var(--muted); border-color:var(--line); padding:3px 8px; font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+  .card.paused { opacity:.6; }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .dot { width:12px; height:12px; border-radius:50%; background:var(--unk); flex:none; }
   .dot.up { background:var(--up); } .dot.down { background:var(--down); }
-  .info { flex:1 1 200px; min-width:0; }
+  .info { flex:1 1 220px; min-width:0; }
   .info b { display:block; } .info small { color:var(--muted); word-break:break-all; }
-  .metrics { display:flex; gap:16px; color:var(--muted); font-size:13px; }
-  .metrics span b { color:var(--text); }
-  #err { color:var(--down); min-height:1.4em; margin-bottom:8px; }
+  .actions { display:flex; gap:6px; }
+  .bars { display:flex; gap:2px; height:26px; margin:12px 0 8px; align-items:stretch; }
+  .bars i { flex:1 1 0; border-radius:2px; background:var(--unk); min-width:2px; }
+  .bars i.ok { background:var(--up); } .bars i.fail { background:var(--down); }
+  .metrics { display:flex; gap:18px; flex-wrap:wrap; color:var(--muted); font-size:13px; }
+  .metrics b { color:var(--text); font-weight:600; }
+  .metrics .warn b { color:var(--warn); }
+  #err { color:var(--down); min-height:1.5em; font-size:14px; }
   h2 { font-size:16px; margin:28px 0 8px; }
-  .inc { color:var(--muted); font-size:13px; padding:4px 0; }
+  .inc { color:var(--muted); font-size:13px; padding:5px 0; border-bottom:1px solid var(--line); }
+  .inc b { color:var(--text); }
 </style>
 </head>
 <body>
 <main>
-  <h1>Watchtower</h1>
+  <header><h1>Watchtower</h1><span><a href="/status">Публичная страница</a> · <a href="/docs">API</a></span></header>
   <div id="banner" class="banner">Загрузка…</div>
   <form id="add">
-    <input name="name" placeholder="Название" required>
+    <input name="name" placeholder="Название" required maxlength="100">
     <input name="url" type="url" placeholder="https://example.com" required>
-    <input name="interval_seconds" type="number" min="10" value="60" title="Интервал, сек" style="flex:0 0 90px">
+    <input name="keyword" class="mid" placeholder="Ключевое слово" title="Необязательно: текст, который должен быть на странице">
+    <input name="interval_seconds" class="narrow" type="number" min="10" max="86400" value="60" title="Интервал проверки, сек">
     <button>Добавить</button>
   </form>
   <div id="err"></div>
@@ -48,13 +61,17 @@
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let apiKey = localStorage.getItem("wt_key") || "";
+const fmt = (v, unit) => v == null ? "—" : `${v}${unit}`;
+let apiKey = "";
+try { apiKey = localStorage.getItem("wt_key") || ""; } catch {}
 
 async function api(path, opts = {}) {
   const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", "X-API-Key": apiKey } });
   if (r.status === 401) {
-    apiKey = prompt("API-ключ:") || "";
-    localStorage.setItem("wt_key", apiKey);
+    const entered = prompt("API-ключ:");
+    if (!entered) throw new Error("Нужен API-ключ");
+    apiKey = entered;
+    try { localStorage.setItem("wt_key", apiKey); } catch {}
     return api(path, opts);
   }
   if (!r.ok) {
@@ -64,44 +81,66 @@ async function api(path, opts = {}) {
   return r.status === 204 ? null : r.json();
 }
 
+function card(m) {
+  const up = m.stats.uptime_percent, lat = m.stats.latency_ms_24h;
+  const pad = Array(Math.max(0, 40 - m.recent.length)).fill("<i></i>").join("");
+  const bars = pad + m.recent.map(c =>
+    `<i class="${c.ok ? "ok" : "fail"}" title="${new Date(c.at).toLocaleString()}${c.latency_ms != null ? " · " + Math.round(c.latency_ms) + " мс" : ""}"></i>`).join("");
+  const tlsDays = m.tls_expires_at ? Math.floor((new Date(m.tls_expires_at) - Date.now()) / 864e5) : null;
+  return `<div class="card ${m.is_active ? "" : "paused"}">
+    <div class="row">
+      <span class="dot ${m.is_active ? esc(m.status) : ""}"></span>
+      <div class="info"><b>${esc(m.name)}${m.is_active ? "" : " (пауза)"}</b><small>${esc(m.url)}</small></div>
+      <div class="actions">
+        <button class="ghost" data-toggle="${m.id}" data-active="${m.is_active}">${m.is_active ? "Пауза" : "Запустить"}</button>
+        <button class="ghost" data-del="${m.id}">Удалить</button>
+      </div>
+    </div>
+    <div class="bars">${bars}</div>
+    <div class="metrics">
+      <span>Uptime 24ч <b>${fmt(up["24h"], "%")}</b></span>
+      <span>7д <b>${fmt(up["7d"], "%")}</b></span>
+      <span>30д <b>${fmt(up["30d"], "%")}</b></span>
+      <span>Средняя <b>${fmt(lat.avg, " мс")}</b></span>
+      <span>p95 <b>${fmt(lat.p95, " мс")}</b></span>
+      ${tlsDays != null ? `<span class="${tlsDays <= 14 ? "warn" : ""}">SSL <b>${tlsDays} дн.</b></span>` : ""}
+    </div></div>`;
+}
+
 async function refresh() {
   try {
-    const monitors = await api("/monitors");
-    const stats = await Promise.all(monitors.map(m => api(`/monitors/${m.id}/stats`)));
-    const down = monitors.filter(m => m.status === "down").length;
+    const [monitors, inc] = await Promise.all([api("/summary"), api("/incidents?limit=10")]);
+    const active = monitors.filter(m => m.is_active);
+    const down = active.filter(m => m.status === "down").length;
     $("#banner").className = "banner" + (down ? " bad" : "");
     $("#banner").textContent = !monitors.length ? "Добавьте первый монитор"
-      : down ? `Проблемы: недоступно ${down} из ${monitors.length}` : "Все системы работают";
-    $("#list").innerHTML = monitors.map((m, i) => {
-      const s = stats[i], up = s.uptime_percent["24h"], lat = s.latency_ms_24h;
-      return `<div class="card">
-        <span class="dot ${esc(m.status)}"></span>
-        <div class="info"><b>${esc(m.name)}</b><small>${esc(m.url)}</small></div>
-        <div class="metrics">
-          <span>Uptime 24ч <b>${up ?? "—"}${up != null ? "%" : ""}</b></span>
-          <span>p95 <b>${lat.p95 ?? "—"}${lat.p95 != null ? " мс" : ""}</b></span>
-        </div>
-        <button class="ghost" data-del="${m.id}">Удалить</button></div>`;
-    }).join("");
+      : down ? `Проблемы: недоступно ${down} из ${active.length}` : "Все системы работают";
+    $("#list").innerHTML = monitors.map(card).join("");
     const names = Object.fromEntries(monitors.map(m => [m.id, m.name]));
-    const inc = await api("/incidents?limit=10");
     $("#incidents").innerHTML = inc.length ? inc.map(i =>
-      `<div class="inc">${esc(names[i.monitor_id] ?? "#" + i.monitor_id)} — ${new Date(i.started_at).toLocaleString()}
-       ${i.resolved_at ? "→ " + new Date(i.resolved_at).toLocaleString() : "<b style='color:var(--down)'>идёт</b>"}
+      `<div class="inc"><b>${esc(names[i.monitor_id] ?? "#" + i.monitor_id)}</b> — ${new Date(i.started_at).toLocaleString()}
+       ${i.resolved_at ? "→ " + new Date(i.resolved_at).toLocaleString() : "<b style='color:var(--down)'>идёт сейчас</b>"}
        ${i.last_error ? "· " + esc(i.last_error) : ""}</div>`).join("") : '<div class="inc">Инцидентов нет</div>';
+    $("#err").textContent = "";
   } catch (e) { $("#err").textContent = e.message; }
 }
 
 $("#add").addEventListener("submit", async e => {
-  e.preventDefault(); $("#err").textContent = "";
+  e.preventDefault();
   const f = Object.fromEntries(new FormData(e.target));
   f.interval_seconds = +f.interval_seconds;
+  if (!f.keyword) delete f.keyword;
   try { await api("/monitors", { method: "POST", body: JSON.stringify(f) }); e.target.reset(); refresh(); }
-  catch (er) { $("#err").textContent = typeof er.message === "string" ? er.message : "Ошибка"; }
+  catch (er) { $("#err").textContent = er.message; }
 });
 $("#list").addEventListener("click", async e => {
-  const id = e.target.dataset.del;
-  if (id && confirm("Удалить монитор?")) { await api("/monitors/" + id, { method: "DELETE" }); refresh(); }
+  const d = e.target.dataset;
+  try {
+    if (d.del && confirm("Удалить монитор вместе с историей?")) await api("/monitors/" + d.del, { method: "DELETE" });
+    else if (d.toggle) await api("/monitors/" + d.toggle, { method: "PATCH", body: JSON.stringify({ is_active: d.active !== "true" }) });
+    else return;
+    refresh();
+  } catch (er) { $("#err").textContent = er.message; }
 });
 refresh(); setInterval(refresh, 10000);
 </script>

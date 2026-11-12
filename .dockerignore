@@ -3,3 +3,9 @@
 tests
 *.db
 .env
+docs
+scripts
+*.egg-info
+.mypy_cache
+.coverage
+.github

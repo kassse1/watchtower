@@ -1,6 +1,7 @@
-"""Чистая логика переходов состояния монитора (без I/O — легко тестировать)."""
+"""Чистая логика принятия решений (без I/O — легко тестировать)."""
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import StrEnum
 
 
@@ -30,3 +31,18 @@ def next_state(state: State, ok: bool, threshold: int) -> tuple[State, Transitio
     if failures >= threshold and state.status != "down":
         return State("down", failures), Transition.WENT_DOWN
     return State(state.status, failures), Transition.NONE
+
+
+def should_warn_tls(
+    expires_at: datetime | None, warned_for: datetime | None, now: datetime, warn_days: int
+) -> bool:
+    """Предупреждаем один раз на сертификат: после перевыпуска срок меняется,
+    и для нового сертификата предупреждение сработает снова."""
+    if expires_at is None or expires_at == warned_for:
+        return False
+    return expires_at - now <= timedelta(days=warn_days)
+
+
+def retry_delay(attempts: int, base: float = 30.0, cap: float = 3600.0) -> float:
+    """Экспоненциальная задержка повторной доставки алерта: 30с, 1м, 2м, … до часа."""
+    return float(min(cap, base * 2 ** max(0, attempts - 1)))

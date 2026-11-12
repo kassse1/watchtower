@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "watchtower"
-version = "0.1.0"
+version = "0.2.0"
 description = "Self-hosted uptime monitoring with incident tracking and Telegram/webhook alerts"
 requires-python = ">=3.11"
 dependencies = [
@@ -10,15 +14,48 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0",
     "aiosqlite>=0.20",
     "pydantic-settings>=2.4",
+    "alembic>=1.13",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.24", "respx>=0.21", "ruff>=0.6"]
+postgres = ["asyncpg>=0.29"]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5",
+    "pytest-timeout>=2.3",
+    "respx>=0.21",
+    "trustme>=1.1",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "asyncpg>=0.29",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["static/*", "migrations/*.mako", "migrations/versions/*.py"]
+
+[tool.mypy]
+strict = true
+files = ["app"]
+plugins = ["pydantic.mypy"]
+
+[tool.coverage.run]
+source = ["app"]
+concurrency = ["greenlet", "thread"]  # SQLAlchemy async работает через greenlet
+omit = ["app/migrations/*"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+timeout = 60  # зависший тест должен падать со стеком, а не вешать CI
 
 [tool.ruff]
 line-length = 100

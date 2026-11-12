@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String
+from sqlalchemy import JSON, Boolean, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, UTCDateTime, utcnow
@@ -23,8 +24,13 @@ class Monitor(Base):
     status: Mapped[str] = mapped_column(String(10), default="unknown")  # unknown|up|down
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
     last_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    last_latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     next_check_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+    tls_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # Срок сертификата, о котором уже предупредили: одно предупреждение на сертификат.
+    tls_warned_for: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
 class CheckResult(Base):
@@ -50,3 +56,23 @@ class Incident(Base):
     started_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class AlertDelivery(Base):
+    """Transactional outbox: алерт пишется в той же транзакции, что и смена статуса,
+    а доставляется отдельно, с повторами. Одна строка на (событие, канал)."""
+
+    __tablename__ = "alert_deliveries"
+    __table_args__ = (Index("ix_alert_pending", "status", "next_attempt_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    monitor_id: Mapped[int] = mapped_column(ForeignKey("monitors.id", ondelete="CASCADE"))
+    channel: Mapped[str] = mapped_column(String(30))
+    kind: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending|delivered|failed
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    next_attempt_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    delivered_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(200), nullable=True)

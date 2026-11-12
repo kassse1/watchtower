@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Статус сервисов</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --text:#e6edf3; --muted:#8b949e; --up:#3fb950; --down:#f85149; --warn:#d29922; --unk:#484f58; --line:#30363d; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --card:#fff; --text:#1f2328; --muted:#656d76; --line:#d0d7de; --unk:#afb8c1; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 24px; margin: 0 0 20px; }
+  .overall { padding:18px 20px; border-radius:10px; color:#fff; font-size:18px; font-weight:600; margin-bottom:24px; background:var(--unk); }
+  .overall.operational { background:#1a7f37; } .overall.degraded { background:#9a6700; } .overall.outage { background:#cf222e; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+  .row { display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
+  .state { font-size:13px; font-weight:600; color:var(--muted); white-space:nowrap; }
+  .state.up { color:var(--up); } .state.down { color:var(--down); }
+  .bars { display:flex; gap:2px; height:30px; margin:10px 0 6px; }
+  .bars i { flex:1 1 0; border-radius:2px; background:var(--unk); min-width:2px; }
+  .bars i.g { background:var(--up); } .bars i.y { background:var(--warn); } .bars i.r { background:var(--down); }
+  .legend { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); }
+  h2 { font-size:16px; margin:28px 0 8px; }
+  .inc { font-size:14px; padding:8px 0; border-bottom:1px solid var(--line); color:var(--muted); }
+  .inc b { color:var(--text); }
+  footer { margin-top:28px; font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Статус сервисов</h1>
+  <div id="overall" class="overall">Загрузка…</div>
+  <div id="list"></div>
+  <h2>История инцидентов</h2>
+  <div id="incidents"></div>
+  <footer id="foot"></footer>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const TITLES = { operational: "Все системы работают", degraded: "Часть сервисов недоступна", outage: "Серьёзный сбой", unknown: "Данных пока нет" };
+const STATES = { up: "Работает", down: "Недоступен", unknown: "Нет данных" };
+const cls = u => u == null ? "" : u >= 99.5 ? "g" : u >= 95 ? "y" : "r";
+function duration(a, b) {
+  const min = Math.max(1, Math.round((new Date(b) - new Date(a)) / 60000));
+  return min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч ${min % 60} мин`;
+}
+async function load() {
+  try {
+    const r = await fetch("/api/public/status");
+    if (!r.ok) throw new Error();
+    const s = await r.json();
+    $("#overall").className = "overall " + s.overall;
+    $("#overall").textContent = TITLES[s.overall];
+    $("#list").innerHTML = s.monitors.map(m => `<div class="card">
+      <div class="row"><b>${esc(m.name)}</b><span class="state ${esc(m.status)}">${STATES[m.status] ?? ""}</span></div>
+      <div class="bars">${m.days.map(d => `<i class="${cls(d.uptime)}" title="${d.date}: ${d.uptime == null ? "нет данных" : d.uptime + "%"}"></i>`).join("")}</div>
+      <div class="legend"><span>30 дней назад</span><span>${m.uptime_30d == null ? "" : "Uptime " + m.uptime_30d + "%"}</span><span>сегодня</span></div>
+    </div>`).join("");
+    $("#incidents").innerHTML = s.incidents.length ? s.incidents.map(i => `<div class="inc">
+      <b>${esc(i.monitor)}</b> — ${new Date(i.started_at).toLocaleString()},
+      ${i.resolved_at ? "длился " + duration(i.started_at, i.resolved_at) : "<b style='color:var(--down)'>продолжается</b>"}</div>`).join("")
+      : '<div class="inc">За последнее время инцидентов не было</div>';
+    $("#foot").textContent = "Обновлено " + new Date(s.generated_at).toLocaleTimeString();
+  } catch { $("#overall").textContent = "Не удалось загрузить статус"; }
+}
+load(); setInterval(load, 30000);
+</script>
+</body>
+</html>
