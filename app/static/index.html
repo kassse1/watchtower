@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watchtower</title>
+<style>
+  :root { --bg:#0f1419; --card:#1a2028; --text:#e6e9ee; --muted:#8b95a3; --up:#3fb950; --down:#f85149; --unk:#8b95a3; --line:#2a323d; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --card:#fff; --text:#1f2328; --muted:#656d76; --line:#d8dee4; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  .banner { padding:12px 16px; border-radius:8px; margin-bottom:16px; font-weight:600; background:var(--card); border-left:4px solid var(--up); }
+  .banner.bad { border-color: var(--down); }
+  form { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+  input, button { font:inherit; padding:8px 10px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--text); }
+  input { flex:1 1 160px; min-width:0; }
+  button { cursor:pointer; background:#238636; border-color:#238636; color:#fff; }
+  button.ghost { background:transparent; color:var(--muted); border-color:var(--line); padding:4px 8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 16px; margin-bottom:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .dot { width:12px; height:12px; border-radius:50%; background:var(--unk); flex:none; }
+  .dot.up { background:var(--up); } .dot.down { background:var(--down); }
+  .info { flex:1 1 200px; min-width:0; }
+  .info b { display:block; } .info small { color:var(--muted); word-break:break-all; }
+  .metrics { display:flex; gap:16px; color:var(--muted); font-size:13px; }
+  .metrics span b { color:var(--text); }
+  #err { color:var(--down); min-height:1.4em; margin-bottom:8px; }
+  h2 { font-size:16px; margin:28px 0 8px; }
+  .inc { color:var(--muted); font-size:13px; padding:4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Watchtower</h1>
+  <div id="banner" class="banner">Загрузка…</div>
+  <form id="add">
+    <input name="name" placeholder="Название" required>
+    <input name="url" type="url" placeholder="https://example.com" required>
+    <input name="interval_seconds" type="number" min="10" value="60" title="Интервал, сек" style="flex:0 0 90px">
+    <button>Добавить</button>
+  </form>
+  <div id="err"></div>
+  <div id="list"></div>
+  <h2>Последние инциденты</h2>
+  <div id="incidents"></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let apiKey = localStorage.getItem("wt_key") || "";
+
+async function api(path, opts = {}) {
+  const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", "X-API-Key": apiKey } });
+  if (r.status === 401) {
+    apiKey = prompt("API-ключ:") || "";
+    localStorage.setItem("wt_key", apiKey);
+    return api(path, opts);
+  }
+  if (!r.ok) {
+    const d = (await r.json().catch(() => ({}))).detail;
+    throw new Error(typeof d === "string" ? d : "Проверьте введённые данные");
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+async function refresh() {
+  try {
+    const monitors = await api("/monitors");
+    const stats = await Promise.all(monitors.map(m => api(`/monitors/${m.id}/stats`)));
+    const down = monitors.filter(m => m.status === "down").length;
+    $("#banner").className = "banner" + (down ? " bad" : "");
+    $("#banner").textContent = !monitors.length ? "Добавьте первый монитор"
+      : down ? `Проблемы: недоступно ${down} из ${monitors.length}` : "Все системы работают";
+    $("#list").innerHTML = monitors.map((m, i) => {
+      const s = stats[i], up = s.uptime_percent["24h"], lat = s.latency_ms_24h;
+      return `<div class="card">
+        <span class="dot ${esc(m.status)}"></span>
+        <div class="info"><b>${esc(m.name)}</b><small>${esc(m.url)}</small></div>
+        <div class="metrics">
+          <span>Uptime 24ч <b>${up ?? "—"}${up != null ? "%" : ""}</b></span>
+          <span>p95 <b>${lat.p95 ?? "—"}${lat.p95 != null ? " мс" : ""}</b></span>
+        </div>
+        <button class="ghost" data-del="${m.id}">Удалить</button></div>`;
+    }).join("");
+    const names = Object.fromEntries(monitors.map(m => [m.id, m.name]));
+    const inc = await api("/incidents?limit=10");
+    $("#incidents").innerHTML = inc.length ? inc.map(i =>
+      `<div class="inc">${esc(names[i.monitor_id] ?? "#" + i.monitor_id)} — ${new Date(i.started_at).toLocaleString()}
+       ${i.resolved_at ? "→ " + new Date(i.resolved_at).toLocaleString() : "<b style='color:var(--down)'>идёт</b>"}
+       ${i.last_error ? "· " + esc(i.last_error) : ""}</div>`).join("") : '<div class="inc">Инцидентов нет</div>';
+  } catch (e) { $("#err").textContent = e.message; }
+}
+
+$("#add").addEventListener("submit", async e => {
+  e.preventDefault(); $("#err").textContent = "";
+  const f = Object.fromEntries(new FormData(e.target));
+  f.interval_seconds = +f.interval_seconds;
+  try { await api("/monitors", { method: "POST", body: JSON.stringify(f) }); e.target.reset(); refresh(); }
+  catch (er) { $("#err").textContent = typeof er.message === "string" ? er.message : "Ошибка"; }
+});
+$("#list").addEventListener("click", async e => {
+  const id = e.target.dataset.del;
+  if (id && confirm("Удалить монитор?")) { await api("/monitors/" + id, { method: "DELETE" }); refresh(); }
+});
+refresh(); setInterval(refresh, 10000);
+</script>
+</body>
+</html>
