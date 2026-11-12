@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import DateTime, TypeDecorator, event
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -40,10 +41,17 @@ def _sqlite_pragmas(dbapi_conn: Any, _record: Any) -> None:
 
 
 class Database:
-    def __init__(self, url: str) -> None:
-        self.engine: AsyncEngine = create_async_engine(url)
-        if self.engine.dialect.name == "sqlite":
+    def __init__(self, url: str, pool_size: int = 5, max_overflow: int = 5) -> None:
+        if make_url(url).get_backend_name() == "sqlite":
+            self.engine: AsyncEngine = create_async_engine(url)
             event.listen(self.engine.sync_engine, "connect", _sqlite_pragmas)
+        else:
+            self.engine = create_async_engine(
+                url,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+                pool_pre_ping=True,  # облачные базы рвут простаивающие соединения
+            )
         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
 
     async def create_all(self) -> None:

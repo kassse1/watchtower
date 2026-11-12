@@ -1,0 +1,26 @@
+# Render Blueprint: New → Blueprint → выбрать этот репозиторий.
+# Подробная инструкция: docs/DEPLOY.md
+services:
+  - type: web
+    name: watchtower
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # Строка подключения к Postgres (Supabase: Connect → Session pooler). Вставляется как есть.
+      - key: WT_DATABASE_URL
+        sync: false
+      # Сервис доступен из интернета, поэтому API закрыт ключом. Render сгенерирует его сам.
+      - key: WT_API_KEY
+        generateValue: true
+      - key: WT_TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: WT_TELEGRAM_CHAT_ID
+        sync: false
+      # Бесплатный пулер Supabase даёт мало соединений
+      - key: WT_DB_POOL_SIZE
+        value: "4"
+      - key: WT_DB_MAX_OVERFLOW
+        value: "4"
+      - key: WT_MAX_CONCURRENT_CHECKS
+        value: "10"

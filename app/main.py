@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     if settings.auto_migrate:
         await asyncio.to_thread(upgrade, settings.database_url)
-    db = Database(settings.database_url)
+    db = Database(settings.database_url, settings.db_pool_size, settings.db_max_overflow)
     app.state.db = db
     async with httpx.AsyncClient(headers={"User-Agent": "Watchtower/0.2"}) as client:
         scheduler = Scheduler(db, client, build_notifiers(settings, client), settings)

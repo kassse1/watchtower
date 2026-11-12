@@ -27,6 +27,8 @@ docker compose up -d
 
 Настройки — в `.env` (см. [.env.example](.env.example)): Telegram, webhook, API-ключ, Postgres.
 
+Бесплатный деплой в облако (Render + Supabase) — в [docs/DEPLOY.md](docs/DEPLOY.md).
+
 Посмотреть интерфейс с готовой историей за 30 дней, без Docker:
 
 ```bash
