@@ -301,3 +301,26 @@ async def test_graceful_stop_finishes_fast_checks_and_cancels_stuck_ones(db, set
         assert (await s.get(Monitor, stuck_id)).last_checked_at is None
     # прерванная проверка не потеряна: аренда истекла, монитор снова в очереди
     assert stuck_id in await claim_due_monitors(db, 10, 120)
+
+
+@respx.mock
+async def test_late_down_alert_is_not_sent_after_recovery(db, settings):
+    """Канал лежал, пока сайт был недоступен. Когда канал ожил, сайт уже работает:
+    «упал» отправлять поздно, а «восстановился» с длительностью простоя — нужно."""
+    mid = await make_monitor(db, failure_threshold=1)
+    route = respx.get(URL)
+    offline = FakeNotifier(fail_times=1)
+    async with httpx.AsyncClient() as client:
+        route.respond(500)
+        await check_monitor(mid, db, client, ["fake"], settings)
+        await deliver_pending_alerts(db, {"fake": offline}, settings)  # не доставлено
+        route.respond(200)
+        await check_monitor(mid, db, client, ["fake"], settings)
+    await make_due(db)
+    await deliver_pending_alerts(db, {"fake": offline}, settings)
+
+    assert [e.kind for e in offline.events] == ["recovered"]
+    assert offline.events[0].downtime_seconds is not None
+    down, recovered = await alerts(db)
+    assert (down.status, down.last_error) == ("skipped", "superseded")
+    assert recovered.status == "delivered"

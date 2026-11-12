@@ -238,3 +238,41 @@ async def test_pages_work_under_the_csp(api):
         for asset in assets:
             assert f"/static/{asset}" in html
             assert (await api.get(f"/static/{asset}")).status_code == 200
+
+
+async def test_api_key_brute_force_is_throttled(api, settings):
+    settings.api_key = "s3cret"
+    settings.auth_max_failures = 3
+    api._transport.app.state.auth_limiter.max_failures = 3
+    for _ in range(3):
+        assert (await api.get("/api/monitors", headers={"X-API-Key": "guess"})).status_code == 401
+    r = await api.get("/api/monitors", headers={"X-API-Key": "guess"})
+    assert r.status_code == 429 and int(r.headers["retry-after"]) > 0
+    # под блокировкой не проходит и верный ключ — иначе перебор продолжался бы
+    assert (await api.get("/api/monitors", headers={"X-API-Key": "s3cret"})).status_code == 429
+    # публичные страницы блокировка не затрагивает
+    assert (await api.get("/api/public/status")).status_code == 200
+    assert (await api.get("/health")).status_code == 200
+
+
+async def test_requests_without_key_do_not_count_as_guesses(api, settings):
+    """Дашборд до ввода ключа шлёт запросы без него. Они не должны блокировать владельца."""
+    settings.api_key = "s3cret"
+    api._transport.app.state.auth_limiter.max_failures = 3
+    for _ in range(10):
+        assert (await api.get("/api/monitors")).status_code == 401
+    assert (await api.get("/api/monitors", headers={"X-API-Key": "s3cret"})).status_code == 200
+
+
+async def test_client_address_behind_proxy(api, settings):
+    settings.api_key = "s3cret"
+    settings.trust_proxy_headers = True
+    api._transport.app.state.auth_limiter.max_failures = 2
+    bad = {"X-API-Key": "guess"}
+    # клиент подставляет в начало списка случайные адреса, чтобы обойти ограничение
+    for fake in ("1.1.1.1", "2.2.2.2"):
+        await api.get("/api/monitors", headers={**bad, "X-Forwarded-For": f"{fake}, 9.9.9.9"})
+    r = await api.get("/api/monitors", headers={**bad, "X-Forwarded-For": "3.3.3.3, 9.9.9.9"})
+    assert r.status_code == 429  # считаем по адресу, который дописал прокси
+    other = {"X-API-Key": "s3cret", "X-Forwarded-For": "8.8.4.4"}
+    assert (await api.get("/api/monitors", headers=other)).status_code == 200

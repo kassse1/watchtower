@@ -37,6 +37,10 @@ $("#key-form").addEventListener("submit", () => {
 async function api(path, opts = {}) {
   const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", "X-API-Key": apiKey } });
   if (r.status === 401) { await askKey(); return api(path, opts); }
+  if (r.status === 429) {
+    const min = Math.ceil((+r.headers.get("Retry-After") || 60) / 60);
+    throw new Error(`Слишком много неверных ключей. Повторите через ${min} мин`);
+  }
   if (!r.ok) {
     const d = (await r.json().catch(() => ({}))).detail;
     if (typeof d === "string") throw new Error(d);
@@ -230,6 +234,7 @@ document.addEventListener("scroll", () => tip.classList.remove("show"), { passiv
 
 let lastInc = [];
 async function refresh() {
+  if (keyWaiters) return;  // ждём ключ — не шлём запросы, которые заведомо не пройдут
   try {
     [monitors, lastInc] = await Promise.all([api("/summary"), api("/incidents?limit=8")]);
     loadedAt = Date.now();

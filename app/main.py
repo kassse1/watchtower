@@ -15,6 +15,7 @@ from app.config import get_settings
 from app.db import Database
 from app.migrate import upgrade
 from app.notifier import build_notifiers
+from app.ratelimit import FailureLimiter
 from app.service import Scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -29,6 +30,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await asyncio.to_thread(upgrade, settings.database_url)
     db = Database(settings.database_url, settings.db_pool_size, settings.db_max_overflow)
     app.state.db = db
+    app.state.auth_limiter = FailureLimiter(
+        settings.auth_max_failures, settings.auth_window_seconds
+    )
     async with httpx.AsyncClient(headers={"User-Agent": "Watchtower/0.2"}) as client:
         scheduler = Scheduler(db, client, build_notifiers(settings, client), settings)
         task = asyncio.create_task(scheduler.run()) if settings.scheduler_enabled else None

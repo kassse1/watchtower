@@ -2,34 +2,42 @@
 
 [![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
-Self-hosted мониторинг доступности сайтов и API. Проверяет эндпоинты по расписанию, ведёт инциденты,
-считает uptime и латентность, следит за сроком SSL-сертификатов и шлёт алерты в Telegram или на webhook.
+**English** · [Русский](README.ru.md)
 
-**Какую проблему решает.** Фрилансеру или малому бизнесу нужно узнать о падении сайта раньше клиента.
-Платные сервисы для этого избыточны, а «скрипт на cron» шлёт спам, теряет уведомления и не хранит
-историю. Watchtower поднимается одной командой, по умолчанию не требует внешних зависимостей (SQLite)
-и не заваливает сообщениями.
+Self-hosted uptime monitoring for websites and APIs. It checks endpoints on a schedule, tracks
+incidents, computes uptime and latency, watches TLS certificate expiry, and sends alerts to Telegram
+or a webhook.
 
-![Дашборд](docs/dashboard.png)
+**Live demo:** [public status page](https://watchtower-yd4d.onrender.com/status) (free tier, the
+first load can take up to a minute).
 
-Публичная status-страница для клиентов (`/status`) — без URL и текстов ошибок:
+**The problem it solves.** A freelancer or a small business needs to learn that a site is down
+before a customer does. Paid services are overkill for that, and a cron script spams, loses
+notifications, and keeps no history. Watchtower starts with one command, needs no external
+dependencies by default (SQLite), and stays quiet unless something actually changed.
 
-![Status-страница](docs/status.png)
+![Dashboard](docs/dashboard.png)
 
-## Быстрый старт
+Public status page for customers (`/status`), with no URLs or error details exposed:
+
+![Status page](docs/status.png)
+
+## Quick start
 
 ```bash
 docker compose up -d
-# дашборд:           http://localhost:8000
-# status-страница:   http://localhost:8000/status
-# API-документация:  http://localhost:8000/docs
+# dashboard:    http://localhost:8000
+# status page:  http://localhost:8000/status
+# API docs:     http://localhost:8000/docs
 ```
 
-Настройки — в `.env` (см. [.env.example](.env.example)): Telegram, webhook, API-ключ, Postgres.
+Configuration lives in `.env` (see [.env.example](.env.example)): Telegram, webhook, API key,
+Postgres.
 
-Бесплатный деплой в облако (Render + Supabase) — в [docs/DEPLOY.md](docs/DEPLOY.md).
+Free cloud deployment (Render + Supabase) is described in [docs/DEPLOY.md](docs/DEPLOY.md)
+(in Russian).
 
-Посмотреть интерфейс с готовой историей за 30 дней, без Docker:
+To see the UI with 30 days of ready-made history, without Docker:
 
 ```bash
 pip install -e ".[dev]"
@@ -38,115 +46,140 @@ python scripts/seed_demo.py
 WT_SCHEDULER_ENABLED=false uvicorn app.main:app
 ```
 
-## Возможности
+## Features
 
-- **Проверки:** статус ответа, общий таймаут, ключевое слово в теле (200 со страницей «технические работы» — тоже падение).
-- **Порог срабатывания:** монитор считается упавшим после N неудач подряд. Один сетевой сбой не будит ночью.
-- **Алерт только при смене состояния:** одно сообщение о падении и одно о восстановлении с длительностью простоя.
-- **SSL:** срок сертификата снимается с того же соединения; предупреждение за 14 дней, один раз на сертификат.
-- **Надёжная доставка:** алерты пишутся в очередь в базе и повторяются с нарастающей задержкой, пока канал не ответит.
-- **Статистика:** uptime за 24ч/7д/30д, средняя и p95 латентность, журнал инцидентов и журнал доставки алертов.
-- **Публичная status-страница**, дашборд без сборки и зависимостей, REST API с OpenAPI.
-- **`/metrics`** в формате Prometheus.
-- SQLite или Postgres, миграции Alembic применяются при старте.
+- **Checks:** response status, a total deadline, and a keyword in the body (a 200 with a
+  "maintenance" page is still an outage).
+- **Failure threshold:** a monitor goes down only after N failures in a row, so a single network
+  blip does not wake anyone up.
+- **Alerts on state changes only:** one message when a site goes down and one when it recovers,
+  with the downtime.
+- **TLS:** the certificate expiry is read from the same connection; one warning per certificate,
+  14 days ahead.
+- **Reliable delivery:** alerts are queued in the database and retried with backoff until the
+  channel answers. Stale alerts are dropped: "site is down" never arrives after it is back up.
+- **Statistics:** uptime for 24 h / 7 d / 30 d, average and p95 latency, an incident log and an
+  alert delivery log.
+- **Public status page**, a dashboard with no build step and no dependencies (add, edit, pause),
+  REST API with OpenAPI.
+- **`/metrics`** in Prometheus format.
+- SQLite or Postgres; Alembic migrations run on startup.
 
-## Как это устроено
+## How it works
 
 ```
-           ┌────────────── один процесс ───────────────┐
- браузер ─▶│ FastAPI: REST API, дашборд, /status       │
+           ┌─────────────── one process ───────────────┐
+ browser ─▶│ FastAPI: REST API, dashboard, /status      │
            │                                            │
            │ Scheduler (asyncio)                        │      ┌──────────────┐
            │  1. claim: UPDATE … RETURNING ─────────────┼─────▶│ SQLite /     │
-           │  2. probe: httpx к проверенному IP         │      │ Postgres     │
-           │  3. результат + инцидент + алерт в outbox  │─────▶│              │
-           │     одной транзакцией                      │      └──────────────┘
-           │  4. доставка из outbox с повторами ────────┼─────▶ Telegram / webhook
+           │  2. probe: httpx to the validated IP       │      │ Postgres     │
+           │  3. result + incident + alert in outbox,   │─────▶│              │
+           │     one transaction                        │      └──────────────┘
+           │  4. outbox delivery with retries ──────────┼─────▶ Telegram / webhook
            └────────────────────────────────────────────┘
 ```
 
-| Модуль | Ответственность |
+| Module | Responsibility |
 |---|---|
-| `incidents.py` | Чистые функции решений: когда монитор упал, когда предупреждать об SSL, задержка повтора |
-| `checker.py` | Один HTTP-запрос → результат. Не бросает исключений |
-| `security.py` | Защита от SSRF |
-| `service.py` | Захват задач, запись результатов, outbox, планировщик |
-| `stats.py`, `metrics.py` | Агрегаты и экспорт для Prometheus |
-| `api.py`, `schemas.py` | HTTP-слой и валидация |
+| `incidents.py` | Pure decision functions: when a monitor is down, when to warn about TLS, which alert is stale |
+| `checker.py` | One HTTP request → a result. Never raises |
+| `security.py` | SSRF protection |
+| `service.py` | Claiming work, recording results, the outbox, the scheduler |
+| `stats.py`, `metrics.py` | Aggregates and the Prometheus export |
+| `api.py`, `schemas.py` | HTTP layer and validation |
+| `ratelimit.py` | Throttling of API key guessing |
 
-## Инженерные решения
+## Engineering decisions
 
-**Защита от SSRF.** Сервис ходит по URL, которые вводит пользователь, — это классический способ
-добраться до внутренней сети или метаданных облака (`169.254.169.254`).
-- Хост отклоняется, если хотя бы один из его адресов не публичный (включая `::ffff:127.0.0.1` и десятичную запись IP).
-- Соединение идёт **на тот самый IP, который прошёл проверку** (с исходным `Host` и SNI). Иначе между
-  проверкой и запросом DNS может ответить по-другому (DNS rebinding). Сертификат при этом сверяется
-  с исходным именем — это проверено тестом на настоящем TLS-сервере.
-- Редиректы не выполняются; проверка повторяется при каждом запросе, а не только при создании монитора.
+**SSRF protection.** The service fetches URLs supplied by users, which is the classic way to reach
+an internal network or cloud metadata (`169.254.169.254`).
+- A host is rejected if any of its addresses is not public (including `::ffff:127.0.0.1` and the
+  decimal form of an IP).
+- The connection goes **to the very IP that passed validation**, with the original `Host` and SNI.
+  Otherwise DNS could answer differently between the check and the request (DNS rebinding). The
+  certificate is still verified against the original hostname, which is covered by a test against
+  a real TLS server.
+- Redirects are not followed, and validation runs on every check, not only when a monitor is created.
 
-**Алерты не теряются (transactional outbox).** Смена статуса, инцидент и запись об алерте коммитятся
-одной транзакцией; доставка идёт отдельно, с экспоненциальной задержкой. Запись ведётся на каждый канал
-отдельно, поэтому сбой webhook не приводит к дублям в Telegram. Гарантия — at-least-once.
+**Alerts are not lost (transactional outbox).** The status change, the incident and the alert
+record are committed in one transaction; delivery happens separately with exponential backoff.
+There is one record per channel, so a failing webhook does not cause duplicates in Telegram. The
+guarantee is at-least-once.
 
-**Несколько инстансов без двойных проверок.** Монитор захватывается одним `UPDATE … RETURNING`, который
-сдвигает время следующей проверки на срок аренды. Не нужен ни Redis, ни отдельный брокер, работает и в
-SQLite, и в Postgres. Если воркер умер посреди проверки, аренда истекает и монитор подбирает другой.
+**Several instances without double checks.** A monitor is claimed with a single
+`UPDATE … RETURNING` that pushes its next check time forward by a lease. No Redis or broker is
+needed, and it works on both SQLite and Postgres. If a worker dies mid-check, the lease expires and
+another one picks the monitor up.
 
-**Медленный сайт не тормозит остальных.** Каждая проверка — отдельная задача с общим дедлайном: сервер,
-отдающий по байту в секунду, не удержит её дольше таймаута. Тело ответа читается не более 1 МБ.
+**A slow site does not hold up the rest.** Every check is its own task with a total deadline: a
+server that drips one byte per second cannot hold it longer than the timeout. At most 1 MB of the
+body is read.
 
-**Плавная остановка.** Планировщик останавливается флагом, даёт начатым проверкам дописать результат
-и отменяет только те, что не уложились в 8 секунд. Это исправление реальной ошибки: отмена задач
-посреди операции с базой оставляла незакрытые соединения (есть регрессионный тест).
+**Graceful shutdown.** The scheduler stops on a flag, lets in-flight checks record their results,
+and cancels only those that do not finish within 8 seconds. This fixed a real bug: cancelling tasks
+in the middle of a database call left connections open (there is a regression test).
 
-**Защита интерфейса.** Строгая Content-Security-Policy: скрипты выполняются только со своего домена,
-встроенный код запрещён, страницу нельзя открыть во фрейме. Отдельный тест следит, чтобы в разметке
-не появились встроенные скрипты, которые политика молча заблокировала бы у пользователя.
+**Front-end hardening.** A strict Content-Security-Policy: scripts run only from the same origin,
+inline code is forbidden, and the page cannot be framed. A test makes sure no inline script sneaks
+back into the markup, where the policy would silently block it for users.
 
-**Прочее.** Время хранится в UTC и отдаётся с `Z`. API-ключ сравнивается через `secrets.compare_digest`.
-Токен Telegram не попадает ни в логи, ни в базу. Публичный статус не раскрывает URL и тексты ошибок.
-`/health` проверяет и доступность базы.
+**API key brute-force protection.** After 10 wrong keys from one address the client is locked out
+for 5 minutes, and the lockout applies before the key is checked. Behind a reverse proxy the client
+address is taken from the last `X-Forwarded-For` entry, because the earlier ones can be forged by
+the client.
 
-## Тесты и качество
+**Other details.** Time is stored in UTC and returned with `Z`. The API key is compared with
+`secrets.compare_digest`. The Telegram token never reaches logs or the database. The public status
+page exposes no URLs or error messages. `/health` also checks the database.
+
+## Tests and quality
 
 ```bash
-pytest --cov      # покрытие ~98%, порог в CI — 90%
-ruff check . && ruff format --check . && mypy    # mypy в режиме strict
-WT_TEST_DATABASE_URL=postgresql+asyncpg://user:pass@localhost/db pytest   # тот же набор на Postgres
+pytest --cov      # ~97% coverage, CI gate at 90%
+ruff check . && ruff format --check . && mypy    # mypy in strict mode
+WT_TEST_DATABASE_URL=postgresql+asyncpg://user:pass@localhost/db pytest   # same suite on Postgres
+pip install -e ".[dev,e2e]" && playwright install chromium && pytest tests/e2e   # browser tests
 ```
 
-Что именно проверяется помимо обычных юнит-тестов:
+Beyond ordinary unit tests, the suite checks:
 
-- привязка к IP и проверка сертификата — на локальном TLS-сервере, а не на моках;
-- общий дедлайн — на сервере, который отдаёт тело по байту;
-- два «инстанса» одновременно захватывают 20 мониторов: множества не пересекаются;
-- 40 проверок завершаются и пишут в базу одновременно — все записи на месте;
-- миграции совпадают с моделями (забытая миграция роняет тест);
-- сквозной сценарий: старт → миграции → проверка → алерт на webhook → инцидент в API.
+- IP pinning and certificate verification against a local TLS server, not mocks;
+- the total deadline against a server that drips the body byte by byte;
+- two "instances" claiming 20 monitors at once: the sets do not overlap;
+- 40 checks finishing and writing to the database simultaneously, with no record lost;
+- migrations match the models (a forgotten migration fails the test);
+- an end-to-end run: startup → migrations → check → webhook alert → incident in the API;
+- the UI in a real browser (Playwright): add, edit, pause, delete, API key sign-in, no CSP
+  violations, and HTML in a monitor name is shown as text rather than executed.
 
-CI: линтер и типы, тесты на Python 3.11–3.13, отдельный прогон на Postgres, сборка и запуск Docker-образа.
+CI: lint and types, tests on Python 3.11–3.13, a separate run on Postgres, browser tests, and a
+Docker image build with a smoke test.
 
 ## API
 
-| Метод | Путь | Описание |
+| Method | Path | Description |
 |---|---|---|
-| `POST` `GET` | `/api/monitors` | Создать, получить список |
-| `GET` `PATCH` `DELETE` | `/api/monitors/{id}` | Получить, изменить (в т.ч. пауза), удалить с историей |
-| `GET` | `/api/monitors/{id}/checks`, `/stats` | История проверок, uptime и латентность |
-| `GET` | `/api/summary` | Все мониторы со статистикой одним запросом |
-| `GET` | `/api/incidents`, `/api/alerts` | Инциденты, журнал доставки алертов |
-| `GET` | `/api/public/status` | Данные публичной страницы (без ключа) |
-| `GET` | `/metrics`, `/health` | Prometheus, проверка живости |
+| `POST` `GET` | `/api/monitors` | Create, list |
+| `GET` `PATCH` `DELETE` | `/api/monitors/{id}` | Get, update (including pause), delete with history |
+| `GET` | `/api/monitors/{id}/checks`, `/stats` | Check history, uptime and latency |
+| `GET` | `/api/summary` | All monitors with statistics in one request |
+| `GET` | `/api/incidents`, `/api/alerts` | Incidents, alert delivery log |
+| `GET` | `/api/public/status` | Data for the public page (no key required) |
+| `GET` | `/metrics`, `/health` | Prometheus, liveness |
 
 ```bash
 curl -X POST localhost:8000/api/monitors -H 'content-type: application/json' \
-  -d '{"name":"Мой сайт","url":"https://example.com","interval_seconds":60,"keyword":"Example"}'
+  -d '{"name":"My site","url":"https://example.com","interval_seconds":60,"keyword":"Example"}'
 ```
 
-## Ограничения
+## Limitations
 
-- Доставка алертов at-least-once: при сбое после отправки, но до записи в базу, возможен дубль.
-- При задержке доставки сообщение о падении может прийти уже после восстановления.
-- Проверки идут из одной точки: сбой сети у самого сервиса выглядит как падение всех сайтов.
-- Статистика считается по сырым проверкам; при тысячах мониторов понадобятся почасовые агрегаты.
-- Встроенной авторизации пользователей нет — один общий API-ключ.
+- Alert delivery is at-least-once: a crash after sending but before the database write can
+  produce a duplicate.
+- Checks run from a single location: a network failure at the service itself looks like every
+  site is down.
+- Statistics are computed from raw checks; thousands of monitors would need hourly rollups.
+- There is no user management, only one shared API key.
+- The failed sign-in counter lives in process memory: with several instances the limit applies
+  to each one separately.

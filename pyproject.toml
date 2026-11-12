@@ -31,6 +31,8 @@ dev = [
     "asyncpg>=0.29",
 ]
 
+e2e = ["playwright>=1.45"]
+
 [tool.setuptools.packages.find]
 include = ["app*"]
 

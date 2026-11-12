@@ -11,7 +11,14 @@ from sqlalchemy import delete, select, update
 from app.checker import Probe, Target, run_probe
 from app.config import Settings
 from app.db import Database, utcnow
-from app.incidents import State, Transition, next_state, retry_delay, should_warn_tls
+from app.incidents import (
+    State,
+    Transition,
+    is_stale_alert,
+    next_state,
+    retry_delay,
+    should_warn_tls,
+)
 from app.models import AlertDelivery, CheckResult, Incident, Monitor
 from app.notifier import AlertEvent, Notifier
 from app.security import UnsafeTargetError, resolve_public_ip
@@ -145,7 +152,9 @@ async def check_monitor(
 async def deliver_pending_alerts(
     db: Database, notifiers: dict[str, Notifier], settings: Settings, batch: int = 50
 ) -> int:
-    """Доставляет алерты из outbox. Гарантия at-least-once: при сбое — повтор с backoff."""
+    """Доставляет алерты из outbox. Гарантия at-least-once: при сбое — повтор с backoff.
+    Алерты, которые за время ожидания перестали соответствовать действительности,
+    не отправляются (см. is_stale_alert)."""
     now = utcnow()
     due = (
         select(AlertDelivery.id)
@@ -173,6 +182,11 @@ async def deliver_pending_alerts(
         async with db.session_factory() as s:
             alert = await s.get(AlertDelivery, alert_id)
             if alert is None:
+                continue
+            monitor = await s.get(Monitor, alert.monitor_id)
+            if monitor is None or is_stale_alert(alert.kind, monitor.status):
+                alert.status, alert.last_error = "skipped", "superseded"
+                await s.commit()
                 continue
             alert.attempts += 1
             notifier = notifiers.get(alert.channel)
