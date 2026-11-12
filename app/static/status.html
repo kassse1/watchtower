@@ -7,70 +7,92 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Cpath d='M9 21l4-6 4 3 6-9' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
   :root {
-    --bg:#f5f6fa; --card:#ffffff; --line:#e4e7ee; --line2:#d3d8e2; --text:#151a26; --muted:#5f6b7d; --faint:#98a2b3;
-    --up:#10b981; --up-ink:#047857; --warn:#f59e0b; --warn-ink:#b45309; --down:#ef4444; --down-ink:#b91c1c; --idle:#dfe3ea;
-    --shadow:0 1px 2px rgba(16,24,40,.05), 0 6px 20px rgba(16,24,40,.06);
+    --bg:#f3f5fb; --glass:rgba(255,255,255,.74); --solid:#fff; --line:rgba(15,23,42,.08); --line2:rgba(15,23,42,.18);
+    --text:#111827; --muted:#5b667a; --faint:#98a2b3; --idle:rgba(15,23,42,.1);
+    --accent-rgb:80,87,240; --up-rgb:15,159,110; --warn-rgb:217,139,20; --down-rgb:224,62,62;
+    --shadow:0 1px 0 rgba(255,255,255,.8) inset, 0 18px 40px -22px rgba(30,41,90,.28); --aurora:.3; --grid:rgba(15,23,42,.06);
+    --state-rgb:var(--accent-rgb);
   }
   @media (prefers-color-scheme: dark) { :root {
-    --bg:#0b0d12; --card:#151922; --line:#252b38; --line2:#323a4a; --text:#eef1f6; --muted:#8d97a8; --faint:#5d6677;
-    --up:#34d399; --up-ink:#34d399; --warn:#fbbf24; --warn-ink:#fbbf24; --down:#f87171; --down-ink:#f87171; --idle:#2c3341;
-    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.18);
+    --bg:#07080c; --glass:rgba(22,26,36,.62); --solid:#141821; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16);
+    --text:#f2f4f8; --muted:#939db0; --faint:#5f6879; --idle:rgba(255,255,255,.1);
+    --accent-rgb:124,131,255; --up-rgb:61,220,151; --warn-rgb:255,194,75; --down-rgb:255,107,107;
+    --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 50px -20px rgba(0,0,0,.6); --aurora:.5; --grid:rgba(255,255,255,.05);
   } }
+  body[data-state="operational"] { --state-rgb:var(--up-rgb); } body[data-state="degraded"] { --state-rgb:var(--warn-rgb); } body[data-state="outage"] { --state-rgb:var(--down-rgb); }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
-  main { max-width:780px; margin:0 auto; padding:36px 20px 56px; }
-  header { display:flex; align-items:center; gap:10px; font-weight:700; font-size:17px; margin-bottom:22px; }
-  .logo { width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:grid; place-items:center; }
-  .overall { display:flex; align-items:center; gap:16px; padding:24px 26px; border-radius:16px; color:#fff; margin-bottom:26px; background:#64748b; box-shadow:var(--shadow); }
-  .overall.operational { background:linear-gradient(135deg,#059669,#10b981); }
-  .overall.degraded { background:linear-gradient(135deg,#b45309,#f59e0b); }
-  .overall.outage { background:linear-gradient(135deg,#b91c1c,#ef4444); }
-  .overall .ic { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.2); display:grid; place-items:center; flex:none; }
-  .overall h1 { margin:0; font-size:22px; letter-spacing:-.02em; line-height:1.25; }
-  .overall p { margin:2px 0 0; opacity:.88; font-size:13.5px; }
-  h2 { font-size:16px; margin:32px 0 12px; letter-spacing:-.01em; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow); }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  .num { font-variant-numeric:tabular-nums; }
+  .sky { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+  .sky i { position:absolute; border-radius:50%; filter:blur(90px); opacity:var(--aurora); transition:background 1.2s; }
+  .sky i:nth-child(1) { width:620px; height:500px; left:-180px; top:-220px; background:rgba(var(--state-rgb),.8); animation:d1 26s ease-in-out infinite alternate; }
+  .sky i:nth-child(2) { width:520px; height:460px; right:-200px; top:-140px; background:rgba(var(--accent-rgb),.6); animation:d2 32s ease-in-out infinite alternate; }
+  .sky::after { content:""; position:absolute; inset:0; background-image:radial-gradient(var(--grid) 1px, transparent 1px); background-size:26px 26px; -webkit-mask-image:linear-gradient(#000, transparent 70%); mask-image:linear-gradient(#000, transparent 70%); }
+  @keyframes d1 { to { transform:translate(90px, 60px) scale(1.12); } } @keyframes d2 { to { transform:translate(-80px, 80px) scale(1.08); } }
+  main { position:relative; z-index:1; max-width:820px; margin:0 auto; padding:34px 20px 60px; }
+  .glass { background:var(--glass); border:1px solid var(--line); border-radius:20px; box-shadow:var(--shadow); -webkit-backdrop-filter:blur(18px) saturate(1.3); backdrop-filter:blur(18px) saturate(1.3); }
+  header { display:flex; align-items:center; gap:11px; font-weight:700; font-size:18px; letter-spacing:-.02em; margin-bottom:22px; }
+  .logo { width:34px; height:34px; border-radius:11px; background:linear-gradient(135deg,rgb(var(--accent-rgb)),#b07cff); display:grid; place-items:center; box-shadow:0 6px 20px rgba(var(--accent-rgb),.45); }
+  .overall { position:relative; overflow:hidden; display:flex; align-items:center; gap:22px; padding:30px 32px; margin-bottom:28px; }
+  .overall::before { content:""; position:absolute; inset:0; background:radial-gradient(480px 240px at 0% 0%, rgba(var(--state-rgb),.22), transparent 70%); pointer-events:none; transition:background 1s; }
+  .overall > * { position:relative; }
+  .overall .ic { width:64px; height:64px; border-radius:50%; display:grid; place-items:center; flex:none; color:#fff; background:rgb(var(--state-rgb)); box-shadow:0 0 0 8px rgba(var(--state-rgb),.16), 0 0 40px rgba(var(--state-rgb),.6); animation:halo 2.6s ease-in-out infinite; }
+  @keyframes halo { 50% { box-shadow:0 0 0 14px rgba(var(--state-rgb),.07), 0 0 50px rgba(var(--state-rgb),.75); } }
+  .overall h1 { margin:0; font-size:clamp(24px, 4.4vw, 34px); letter-spacing:-.035em; line-height:1.12; font-weight:750; }
+  .overall p { margin:6px 0 0; color:var(--muted); font-size:14.5px; }
+  h2 { font-size:19px; margin:36px 0 14px; letter-spacing:-.02em; }
+  .card { position:relative; overflow:hidden; padding:20px 22px 18px; margin-bottom:14px; --c:var(--up-rgb); transition:transform .25s cubic-bezier(.2,.8,.2,1), border-color .2s; }
+  .card.down { --c:var(--down-rgb); border-color:rgba(var(--down-rgb),.4); } .card.unknown { --c:var(--accent-rgb); }
+  .card::before { content:""; position:absolute; left:0; right:0; top:0; height:2px; background:linear-gradient(90deg, transparent, rgb(var(--c)), transparent); opacity:.8; }
+  .card:hover { transform:translateY(-2px); border-color:rgba(var(--c),.4); }
   .row { display:flex; justify-content:space-between; gap:12px; align-items:center; }
-  .row b { font-size:15.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .state { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--muted); white-space:nowrap; }
-  .state::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--faint); }
-  .state.up { color:var(--up-ink); } .state.up::before { background:var(--up); }
-  .state.down { color:var(--down-ink); } .state.down::before { background:var(--down); }
-  .bars { display:flex; gap:3px; height:34px; margin:14px 0 7px; }
-  .bars i { flex:1 1 0; min-width:2px; border-radius:3px; background:var(--idle); transition:transform .1s; }
-  .bars i.g { background:var(--up); } .bars i.y { background:var(--warn); } .bars i.r { background:var(--down); }
-  .bars i:hover { transform:scaleY(1.15); }
-  .cap { display:flex; justify-content:space-between; font-size:12px; color:var(--faint); }
-  .cap b { color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums; }
-  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:14px; }
-  .legend span { display:inline-flex; align-items:center; gap:6px; }
-  .legend i { width:10px; height:10px; border-radius:3px; }
-  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 18px; box-shadow:var(--shadow); }
-  .inc { display:flex; gap:12px; padding:13px 0; border-bottom:1px solid var(--line); font-size:14px; align-items:flex-start; }
-  .inc:last-child { border-bottom:0; }
-  .inc .mark { width:8px; height:8px; border-radius:50%; margin-top:7px; background:var(--faint); flex:none; }
-  .inc.open .mark { background:var(--down); }
+  .row > b { font-size:16.5px; letter-spacing:-.015em; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .state { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:650; padding:5px 11px; border-radius:99px; white-space:nowrap; background:rgba(var(--c),.13); color:rgb(var(--c)); border:1px solid rgba(var(--c),.25); }
+  .state::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; }
+  .card.unknown .state { color:var(--muted); background:var(--idle); border-color:transparent; }
+  .bars { display:flex; gap:3px; height:38px; margin:16px 0 8px; }
+  .bars i { flex:1 1 0; min-width:2px; border-radius:99px; background:var(--idle); transition:transform .12s, filter .12s; transform-origin:bottom; }
+  .first .bars i { animation:grow .5s cubic-bezier(.2,.8,.2,1) backwards; animation-delay:calc(var(--n, 0) * 14ms); }
+  @keyframes grow { from { transform:scaleY(0); opacity:0; } }
+  .bars i.g { background:linear-gradient(180deg, rgb(var(--up-rgb)), rgba(var(--up-rgb),.55)); }
+  .bars i.y { background:linear-gradient(180deg, rgb(var(--warn-rgb)), rgba(var(--warn-rgb),.6)); }
+  .bars i.r { background:linear-gradient(180deg, rgb(var(--down-rgb)), rgba(var(--down-rgb),.6)); box-shadow:0 0 10px rgba(var(--down-rgb),.5); }
+  .bars i:hover { transform:scaleY(1.2); filter:brightness(1.2); }
+  .cap { display:flex; justify-content:space-between; align-items:baseline; font-size:12px; color:var(--faint); }
+  .cap b { color:var(--text); font-weight:650; font-size:13.5px; } .cap b span { color:var(--muted); font-weight:500; }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; font-size:12.5px; color:var(--muted); margin-top:16px; padding:0 4px; }
+  .legend span { display:inline-flex; align-items:center; gap:7px; } .legend i { width:10px; height:10px; border-radius:99px; }
+  .tl { padding:8px 22px; }
+  .inc { position:relative; display:flex; gap:16px; padding:14px 0 14px 22px; font-size:14px; align-items:center; }
+  .inc::before { content:""; position:absolute; left:4px; top:0; bottom:0; width:1px; background:var(--line2); }
+  .inc:first-child::before { top:50%; } .inc:last-child::before { bottom:50%; } .inc:only-child::before { display:none; }
+  .inc .mark { position:absolute; left:0; top:calc(50% - 4.5px); width:9px; height:9px; border-radius:50%; background:var(--faint); box-shadow:0 0 0 4px var(--solid); }
+  .inc.open .mark { background:rgb(var(--down-rgb)); box-shadow:0 0 0 4px var(--solid), 0 0 14px rgba(var(--down-rgb),.9); }
   .inc .what { flex:1; min-width:0; } .inc .what small { display:block; color:var(--muted); font-size:13px; }
-  .inc .dur { color:var(--muted); font-size:13px; white-space:nowrap; }
-  .inc.open .dur { color:var(--down-ink); font-weight:600; }
-  .empty { text-align:center; padding:30px 20px; border:1.5px dashed var(--line2); border-radius:14px; color:var(--muted); }
-  footer { margin-top:36px; font-size:12.5px; color:var(--faint); text-align:center; }
-  footer a { color:inherit; }
+  .inc .dur { color:var(--muted); font-size:13px; white-space:nowrap; } .inc.open .dur { color:rgb(var(--down-rgb)); font-weight:650; }
+  .empty { text-align:center; padding:32px 20px; color:var(--muted); border-style:dashed; }
+  #tip { position:fixed; z-index:60; pointer-events:none; padding:7px 11px; border-radius:10px; font-size:12.5px; line-height:1.35; background:var(--solid); border:1px solid var(--line2); box-shadow:0 12px 30px -8px rgba(0,0,0,.4); opacity:0; transform:translate(-50%, calc(-100% - 10px)); transition:opacity .12s; white-space:nowrap; }
+  #tip.show { opacity:1; } #tip b { display:block; } #tip span { color:var(--muted); }
+  footer { margin-top:40px; font-size:12.5px; color:var(--faint); text-align:center; } footer a { color:inherit; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
+  @media (max-width: 560px) { .overall { padding:22px 20px; gap:16px; } .overall .ic { width:50px; height:50px; } :root { --aurora:.26; } .bars { gap:2px; } }
 </style>
 </head>
-<body>
+<body class="first">
+<div class="sky" aria-hidden="true"><i></i><i></i></div>
 <main>
   <header><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16l5-7 4 4 7-9"/></svg></span>Статус сервисов</header>
-  <div id="overall" class="overall"><div class="ic" id="ic"></div><div><h1 id="title">Загрузка…</h1><p id="sub">&nbsp;</p></div></div>
+  <div id="overall" class="overall glass"><div class="ic" id="ic"></div><div><h1 id="title">Загрузка…</h1><p id="sub">&nbsp;</p></div></div>
   <div id="list"></div>
   <div class="legend" id="legend" hidden>
-    <span><i style="background:var(--up)"></i>без сбоев</span><span><i style="background:var(--warn)"></i>короткие сбои</span>
-    <span><i style="background:var(--down)"></i>длительный сбой</span><span><i style="background:var(--idle)"></i>нет данных</span>
+    <span><i style="background:rgb(var(--up-rgb))"></i>без сбоев</span><span><i style="background:rgb(var(--warn-rgb))"></i>короткие сбои</span>
+    <span><i style="background:rgb(var(--down-rgb))"></i>длительный сбой</span><span><i style="background:var(--idle)"></i>нет данных</span>
   </div>
   <h2>История инцидентов</h2>
   <div id="incidents"></div>
   <footer>Работает на <a href="https://github.com/kassse1/projectforwork" rel="noopener">Watchtower</a> · обновляется автоматически</footer>
 </main>
+<div id="tip"></div>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -91,23 +113,31 @@ async function load() {
     const r = await fetch("/api/public/status");
     if (!r.ok) throw new Error();
     const s = await r.json();
-    $("#overall").className = "overall " + s.overall;
+    document.body.dataset.state = s.overall;
     $("#ic").innerHTML = s.overall === "operational" ? OK : BAD;
     $("#title").textContent = TITLES[s.overall];
     $("#sub").textContent = "Обновлено в " + new Date(s.generated_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
     $("#legend").hidden = !s.monitors.length;
-    $("#list").innerHTML = s.monitors.length ? s.monitors.map(m => `<div class="card">
-      <div class="row"><b>${esc(m.name)}</b><span class="state ${esc(m.status)}">${STATES[m.status] ?? ""}</span></div>
-      <div class="bars">${m.days.map(d => `<i class="${cls(d.uptime)}" title="${esc(day(d.date))}: ${d.uptime == null ? "нет данных" : pct(d.uptime)}"></i>`).join("")}</div>
-      <div class="cap"><span>30 дней назад</span>${m.uptime_30d == null ? "" : `<b>${pct(m.uptime_30d)} доступности</b>`}<span>сегодня</span></div>
-    </div>`).join("") : '<div class="empty">Сервисы пока не добавлены</div>';
-    $("#incidents").innerHTML = s.incidents.length ? `<div class="panel">${s.incidents.map(i => `<div class="inc ${i.resolved_at ? "" : "open"}">
+    setTimeout(() => document.body.classList.remove("first"), 1500);
+    $("#list").innerHTML = s.monitors.length ? s.monitors.map(m => `<div class="card glass ${esc(m.status)}">
+      <div class="row"><b>${esc(m.name)}</b><span class="state">${STATES[m.status] ?? ""}</span></div>
+      <div class="bars">${m.days.map((d, n) => `<i class="${cls(d.uptime)}" style="--n:${n}" data-tip="<b>${d.uptime == null ? "Нет данных" : pct(d.uptime) + " доступности"}</b><span>${esc(day(d.date))}</span>"></i>`).join("")}</div>
+      <div class="cap"><span>30 дней назад</span>${m.uptime_30d == null ? "" : `<b class="num">${pct(m.uptime_30d)} <span>доступности за 30 дней</span></b>`}<span>сегодня</span></div>
+    </div>`).join("") : '<div class="empty glass">Сервисы пока не добавлены</div>';
+    $("#incidents").innerHTML = s.incidents.length ? `<div class="tl glass">${s.incidents.map(i => `<div class="inc ${i.resolved_at ? "" : "open"}">
       <span class="mark"></span>
       <div class="what"><b>${esc(i.monitor)}</b><small>${esc(dt(i.started_at))}</small></div>
       <div class="dur">${i.resolved_at ? "устранён за " + span(i.started_at, i.resolved_at) : "продолжается"}</div></div>`).join("")}</div>`
-      : '<div class="empty">За последнее время инцидентов не было</div>';
+      : '<div class="empty glass">За последнее время инцидентов не было</div>';
   } catch { $("#title").textContent = "Не удалось загрузить статус"; $("#sub").textContent = "Попробуйте обновить страницу"; }
 }
+const tip = $("#tip");
+document.addEventListener("mousemove", e => {
+  const t = e.target.closest?.("[data-tip]");
+  if (!t) return tip.classList.remove("show");
+  const r = t.getBoundingClientRect(); tip.innerHTML = t.dataset.tip;
+  tip.style.left = Math.max(90, Math.min(innerWidth - 90, r.left + r.width / 2)) + "px"; tip.style.top = Math.max(50, r.top) + "px"; tip.classList.add("show");
+});
 load(); setInterval(load, 30000);
 </script>
 </body>
