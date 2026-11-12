@@ -4,47 +4,87 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Статус сервисов</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Cpath d='M9 21l4-6 4 3 6-9' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
-  :root { --bg:#0d1117; --card:#161b22; --text:#e6edf3; --muted:#8b949e; --up:#3fb950; --down:#f85149; --warn:#d29922; --unk:#484f58; --line:#30363d; }
-  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --card:#fff; --text:#1f2328; --muted:#656d76; --line:#d0d7de; --unk:#afb8c1; } }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
-  h1 { font-size: 24px; margin: 0 0 20px; }
-  .overall { padding:18px 20px; border-radius:10px; color:#fff; font-size:18px; font-weight:600; margin-bottom:24px; background:var(--unk); }
-  .overall.operational { background:#1a7f37; } .overall.degraded { background:#9a6700; } .overall.outage { background:#cf222e; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
-  .row { display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
-  .state { font-size:13px; font-weight:600; color:var(--muted); white-space:nowrap; }
-  .state.up { color:var(--up); } .state.down { color:var(--down); }
-  .bars { display:flex; gap:2px; height:30px; margin:10px 0 6px; }
-  .bars i { flex:1 1 0; border-radius:2px; background:var(--unk); min-width:2px; }
+  :root {
+    --bg:#f5f6fa; --card:#ffffff; --line:#e4e7ee; --line2:#d3d8e2; --text:#151a26; --muted:#5f6b7d; --faint:#98a2b3;
+    --up:#10b981; --up-ink:#047857; --warn:#f59e0b; --warn-ink:#b45309; --down:#ef4444; --down-ink:#b91c1c; --idle:#dfe3ea;
+    --shadow:0 1px 2px rgba(16,24,40,.05), 0 6px 20px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg:#0b0d12; --card:#151922; --line:#252b38; --line2:#323a4a; --text:#eef1f6; --muted:#8d97a8; --faint:#5d6677;
+    --up:#34d399; --up-ink:#34d399; --warn:#fbbf24; --warn-ink:#fbbf24; --down:#f87171; --down-ink:#f87171; --idle:#2c3341;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.18);
+  } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  main { max-width:780px; margin:0 auto; padding:36px 20px 56px; }
+  header { display:flex; align-items:center; gap:10px; font-weight:700; font-size:17px; margin-bottom:22px; }
+  .logo { width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:grid; place-items:center; }
+  .overall { display:flex; align-items:center; gap:16px; padding:24px 26px; border-radius:16px; color:#fff; margin-bottom:26px; background:#64748b; box-shadow:var(--shadow); }
+  .overall.operational { background:linear-gradient(135deg,#059669,#10b981); }
+  .overall.degraded { background:linear-gradient(135deg,#b45309,#f59e0b); }
+  .overall.outage { background:linear-gradient(135deg,#b91c1c,#ef4444); }
+  .overall .ic { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.2); display:grid; place-items:center; flex:none; }
+  .overall h1 { margin:0; font-size:22px; letter-spacing:-.02em; line-height:1.25; }
+  .overall p { margin:2px 0 0; opacity:.88; font-size:13.5px; }
+  h2 { font-size:16px; margin:32px 0 12px; letter-spacing:-.01em; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow); }
+  .row { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+  .row b { font-size:15.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .state { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--muted); white-space:nowrap; }
+  .state::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--faint); }
+  .state.up { color:var(--up-ink); } .state.up::before { background:var(--up); }
+  .state.down { color:var(--down-ink); } .state.down::before { background:var(--down); }
+  .bars { display:flex; gap:3px; height:34px; margin:14px 0 7px; }
+  .bars i { flex:1 1 0; min-width:2px; border-radius:3px; background:var(--idle); transition:transform .1s; }
   .bars i.g { background:var(--up); } .bars i.y { background:var(--warn); } .bars i.r { background:var(--down); }
-  .legend { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); }
-  h2 { font-size:16px; margin:28px 0 8px; }
-  .inc { font-size:14px; padding:8px 0; border-bottom:1px solid var(--line); color:var(--muted); }
-  .inc b { color:var(--text); }
-  footer { margin-top:28px; font-size:12px; color:var(--muted); }
+  .bars i:hover { transform:scaleY(1.15); }
+  .cap { display:flex; justify-content:space-between; font-size:12px; color:var(--faint); }
+  .cap b { color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:14px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .legend i { width:10px; height:10px; border-radius:3px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 18px; box-shadow:var(--shadow); }
+  .inc { display:flex; gap:12px; padding:13px 0; border-bottom:1px solid var(--line); font-size:14px; align-items:flex-start; }
+  .inc:last-child { border-bottom:0; }
+  .inc .mark { width:8px; height:8px; border-radius:50%; margin-top:7px; background:var(--faint); flex:none; }
+  .inc.open .mark { background:var(--down); }
+  .inc .what { flex:1; min-width:0; } .inc .what small { display:block; color:var(--muted); font-size:13px; }
+  .inc .dur { color:var(--muted); font-size:13px; white-space:nowrap; }
+  .inc.open .dur { color:var(--down-ink); font-weight:600; }
+  .empty { text-align:center; padding:30px 20px; border:1.5px dashed var(--line2); border-radius:14px; color:var(--muted); }
+  footer { margin-top:36px; font-size:12.5px; color:var(--faint); text-align:center; }
+  footer a { color:inherit; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Статус сервисов</h1>
-  <div id="overall" class="overall">Загрузка…</div>
+  <header><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16l5-7 4 4 7-9"/></svg></span>Статус сервисов</header>
+  <div id="overall" class="overall"><div class="ic" id="ic"></div><div><h1 id="title">Загрузка…</h1><p id="sub">&nbsp;</p></div></div>
   <div id="list"></div>
+  <div class="legend" id="legend" hidden>
+    <span><i style="background:var(--up)"></i>без сбоев</span><span><i style="background:var(--warn)"></i>короткие сбои</span>
+    <span><i style="background:var(--down)"></i>длительный сбой</span><span><i style="background:var(--idle)"></i>нет данных</span>
+  </div>
   <h2>История инцидентов</h2>
   <div id="incidents"></div>
-  <footer id="foot"></footer>
+  <footer>Работает на <a href="https://github.com/kassse1/projectforwork" rel="noopener">Watchtower</a> · обновляется автоматически</footer>
 </main>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const TITLES = { operational: "Все системы работают", degraded: "Часть сервисов недоступна", outage: "Серьёзный сбой", unknown: "Данных пока нет" };
+const TITLES = { operational: "Все системы работают", degraded: "Часть сервисов недоступна", outage: "Сервисы недоступны", unknown: "Данных пока нет" };
 const STATES = { up: "Работает", down: "Недоступен", unknown: "Нет данных" };
-const cls = u => u == null ? "" : u >= 99.5 ? "g" : u >= 95 ? "y" : "r";
-function duration(a, b) {
-  const min = Math.max(1, Math.round((new Date(b) - new Date(a)) / 60000));
-  return min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч ${min % 60} мин`;
+const OK = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const BAD = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v6M12 17v.5"/></svg>';
+const cls = u => u == null ? "" : u >= 99.9 ? "g" : u >= 98 ? "y" : "r";
+const pct = v => (v >= 99.995 ? "100" : v.toFixed(2)) + "%";
+const day = d => new Date(d + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+const dt = iso => new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+function span(a, b) {
+  const m = Math.max(1, Math.round((new Date(b) - new Date(a)) / 60000));
+  return m < 60 ? m + " мин" : m < 1440 ? Math.floor(m / 60) + " ч" + (m % 60 ? " " + (m % 60) + " мин" : "") : Math.floor(m / 1440) + " дн " + Math.floor(m % 1440 / 60) + " ч";
 }
 async function load() {
   try {
@@ -52,18 +92,21 @@ async function load() {
     if (!r.ok) throw new Error();
     const s = await r.json();
     $("#overall").className = "overall " + s.overall;
-    $("#overall").textContent = TITLES[s.overall];
-    $("#list").innerHTML = s.monitors.map(m => `<div class="card">
+    $("#ic").innerHTML = s.overall === "operational" ? OK : BAD;
+    $("#title").textContent = TITLES[s.overall];
+    $("#sub").textContent = "Обновлено в " + new Date(s.generated_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    $("#legend").hidden = !s.monitors.length;
+    $("#list").innerHTML = s.monitors.length ? s.monitors.map(m => `<div class="card">
       <div class="row"><b>${esc(m.name)}</b><span class="state ${esc(m.status)}">${STATES[m.status] ?? ""}</span></div>
-      <div class="bars">${m.days.map(d => `<i class="${cls(d.uptime)}" title="${d.date}: ${d.uptime == null ? "нет данных" : d.uptime + "%"}"></i>`).join("")}</div>
-      <div class="legend"><span>30 дней назад</span><span>${m.uptime_30d == null ? "" : "Uptime " + m.uptime_30d + "%"}</span><span>сегодня</span></div>
-    </div>`).join("");
-    $("#incidents").innerHTML = s.incidents.length ? s.incidents.map(i => `<div class="inc">
-      <b>${esc(i.monitor)}</b> — ${new Date(i.started_at).toLocaleString()},
-      ${i.resolved_at ? "длился " + duration(i.started_at, i.resolved_at) : "<b style='color:var(--down)'>продолжается</b>"}</div>`).join("")
-      : '<div class="inc">За последнее время инцидентов не было</div>';
-    $("#foot").textContent = "Обновлено " + new Date(s.generated_at).toLocaleTimeString();
-  } catch { $("#overall").textContent = "Не удалось загрузить статус"; }
+      <div class="bars">${m.days.map(d => `<i class="${cls(d.uptime)}" title="${esc(day(d.date))}: ${d.uptime == null ? "нет данных" : pct(d.uptime)}"></i>`).join("")}</div>
+      <div class="cap"><span>30 дней назад</span>${m.uptime_30d == null ? "" : `<b>${pct(m.uptime_30d)} доступности</b>`}<span>сегодня</span></div>
+    </div>`).join("") : '<div class="empty">Сервисы пока не добавлены</div>';
+    $("#incidents").innerHTML = s.incidents.length ? `<div class="panel">${s.incidents.map(i => `<div class="inc ${i.resolved_at ? "" : "open"}">
+      <span class="mark"></span>
+      <div class="what"><b>${esc(i.monitor)}</b><small>${esc(dt(i.started_at))}</small></div>
+      <div class="dur">${i.resolved_at ? "устранён за " + span(i.started_at, i.resolved_at) : "продолжается"}</div></div>`).join("")}</div>`
+      : '<div class="empty">За последнее время инцидентов не было</div>';
+  } catch { $("#title").textContent = "Не удалось загрузить статус"; $("#sub").textContent = "Попробуйте обновить страницу"; }
 }
 load(); setInterval(load, 30000);
 </script>
