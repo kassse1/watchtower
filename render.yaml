@@ -18,6 +18,9 @@ services:
       - key: WT_TELEGRAM_CHAT_ID
         sync: false
       # Бесплатный пулер Supabase даёт мало соединений
+      # Render — обратный прокси: адрес клиента приходит в X-Forwarded-For
+      - key: WT_TRUST_PROXY_HEADERS
+        value: "true"
       - key: WT_DB_POOL_SIZE
         value: "4"
       - key: WT_DB_MAX_OVERFLOW

@@ -45,6 +45,16 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: pytest
 
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e ".[dev,e2e]"
+      - run: playwright install --with-deps chromium
+      - run: pytest tests/e2e
+
   docker:
     runs-on: ubuntu-latest
     steps:
@@ -56,6 +66,8 @@ jobs:
           for i in $(seq 1 20); do curl -fs localhost:8000/health && break || sleep 1; done
           curl -fs localhost:8000/health
           curl -fs localhost:8000/status > /dev/null
+          curl -fs localhost:8000/static/dashboard.js > /dev/null  # статика попала в установленный пакет
+          curl -fsI localhost:8000/ | grep -i content-security-policy
           curl -fs localhost:8000/api/public/status
           docker stop wt
           test "$(docker inspect -f '{{.State.ExitCode}}' wt)" = "0"

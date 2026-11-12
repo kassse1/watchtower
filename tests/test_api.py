@@ -204,3 +204,75 @@ async def test_pages_and_health(api):
     assert "Watchtower" in (await api.get("/")).text
     assert "Статус сервисов" in (await api.get("/status")).text
     assert (await api.get("/health")).json() == {"status": "ok"}
+
+
+async def test_security_headers(api):
+    r = await api.get("/")
+    csp = r.headers["content-security-policy"]
+    assert "script-src 'self'" in csp and "frame-ancestors 'none'" in csp
+    assert (
+        "unsafe-inline" not in csp.split("script-src")[1].split(";")[0]
+    )  # скриптам inline запрещён
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["x-frame-options"] == "DENY"
+    assert r.headers["cache-control"] == "no-cache"
+    # заголовки стоят и на ответах API, включая ошибки
+    assert (await api.get("/api/monitors/999")).headers["x-content-type-options"] == "nosniff"
+    # Swagger UI грузит скрипты с CDN, строгая политика его бы сломала
+    assert "content-security-policy" not in (await api.get("/docs")).headers
+
+
+async def test_pages_work_under_the_csp(api):
+    """Политика запрещает встроенные скрипты и обработчики. Если кто-то добавит их
+    в разметку, страница молча сломается у пользователя — тест ловит это раньше."""
+    import re
+
+    for page, assets in (
+        ("/", ("dashboard.js", "dashboard.css")),
+        ("/status", ("status.js", "status.css")),
+    ):
+        html = (await api.get(page)).text
+        assert not re.search(r"<script(?![^>]*\bsrc=)", html), page
+        assert not re.search(r"\son\w+\s*=", html), page
+        assert "javascript:" not in html
+        for asset in assets:
+            assert f"/static/{asset}" in html
+            assert (await api.get(f"/static/{asset}")).status_code == 200
+
+
+async def test_api_key_brute_force_is_throttled(api, settings):
+    settings.api_key = "s3cret"
+    settings.auth_max_failures = 3
+    api._transport.app.state.auth_limiter.max_failures = 3
+    for _ in range(3):
+        assert (await api.get("/api/monitors", headers={"X-API-Key": "guess"})).status_code == 401
+    r = await api.get("/api/monitors", headers={"X-API-Key": "guess"})
+    assert r.status_code == 429 and int(r.headers["retry-after"]) > 0
+    # под блокировкой не проходит и верный ключ — иначе перебор продолжался бы
+    assert (await api.get("/api/monitors", headers={"X-API-Key": "s3cret"})).status_code == 429
+    # публичные страницы блокировка не затрагивает
+    assert (await api.get("/api/public/status")).status_code == 200
+    assert (await api.get("/health")).status_code == 200
+
+
+async def test_requests_without_key_do_not_count_as_guesses(api, settings):
+    """Дашборд до ввода ключа шлёт запросы без него. Они не должны блокировать владельца."""
+    settings.api_key = "s3cret"
+    api._transport.app.state.auth_limiter.max_failures = 3
+    for _ in range(10):
+        assert (await api.get("/api/monitors")).status_code == 401
+    assert (await api.get("/api/monitors", headers={"X-API-Key": "s3cret"})).status_code == 200
+
+
+async def test_client_address_behind_proxy(api, settings):
+    settings.api_key = "s3cret"
+    settings.trust_proxy_headers = True
+    api._transport.app.state.auth_limiter.max_failures = 2
+    bad = {"X-API-Key": "guess"}
+    # клиент подставляет в начало списка случайные адреса, чтобы обойти ограничение
+    for fake in ("1.1.1.1", "2.2.2.2"):
+        await api.get("/api/monitors", headers={**bad, "X-Forwarded-For": f"{fake}, 9.9.9.9"})
+    r = await api.get("/api/monitors", headers={**bad, "X-Forwarded-For": "3.3.3.3, 9.9.9.9"})
+    assert r.status_code == 429  # считаем по адресу, который дописал прокси
+    other = {"X-API-Key": "s3cret", "X-Forwarded-For": "8.8.4.4"}
+    assert (await api.get("/api/monitors", headers=other)).status_code == 200

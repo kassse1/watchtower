@@ -11,6 +11,7 @@ from app.config import Settings, get_settings
 from app.db import utcnow
 from app.metrics import render_metrics
 from app.models import AlertDelivery, CheckResult, Incident, Monitor
+from app.ratelimit import FailureLimiter
 from app.schemas import (
     AlertOut,
     CheckOut,
@@ -34,13 +35,33 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
         yield s
 
 
+def client_address(request: Request, settings: Settings) -> str:
+    if settings.trust_proxy_headers:
+        # Берём последний адрес: его дописал наш прокси. Первые в списке клиент
+        # может вписать сам, чтобы обойти ограничение.
+        forwarded = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
+        if forwarded:
+            return forwarded
+    return request.client.host if request.client else "unknown"
+
+
 def require_api_key(
-    x_api_key: str | None = Header(None), settings: Settings = Depends(get_settings)
+    request: Request,
+    x_api_key: str | None = Header(None),
+    settings: Settings = Depends(get_settings),
 ) -> None:
-    if settings.api_key and not secrets.compare_digest(
-        (x_api_key or "").encode(), settings.api_key.encode()
-    ):
-        raise HTTPException(401, "invalid or missing API key")
+    if not settings.api_key:
+        return
+    limiter: FailureLimiter = request.app.state.auth_limiter
+    client = client_address(request, settings)
+    if wait := limiter.retry_after(client):
+        # Блокируем до проверки ключа: иначе перебор продолжался бы и под блокировкой.
+        raise HTTPException(429, "too many failed attempts", headers={"Retry-After": str(wait)})
+    if secrets.compare_digest((x_api_key or "").encode(), settings.api_key.encode()):
+        return
+    if x_api_key:  # запрос совсем без ключа — не попытка подбора
+        limiter.record_failure(client)
+    raise HTTPException(401, "invalid or missing API key")
 
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_api_key)], tags=["monitors"])
@@ -165,7 +186,7 @@ async def list_incidents(
 
 @router.get("/alerts", response_model=list[AlertOut])
 async def list_alerts(
-    status: str | None = Query(None, pattern="^(pending|delivered|failed)$"),
+    status: str | None = Query(None, pattern="^(pending|delivered|failed|skipped)$"),
     limit: int = Query(50, ge=1, le=500),
     session: AsyncSession = Depends(get_session),
 ) -> list[AlertDelivery]:

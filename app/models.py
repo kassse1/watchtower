@@ -70,7 +70,8 @@ class AlertDelivery(Base):
     channel: Mapped[str] = mapped_column(String(30))
     kind: Mapped[str] = mapped_column(String(20))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
-    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending|delivered|failed
+    # pending | delivered | failed (исчерпаны повторы) | skipped (устарел до доставки)
+    status: Mapped[str] = mapped_column(String(10), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     next_attempt_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)

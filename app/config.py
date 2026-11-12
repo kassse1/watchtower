@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     db_pool_size: int = 5
     db_max_overflow: int = 5
     api_key: str | None = None
+    # Защита ключа от перебора: после стольких неверных ключей с одного адреса — пауза.
+    auth_max_failures: int = 10
+    auth_window_seconds: int = 300
+    # Включать только за обратным прокси (Render, nginx): тогда адрес клиента берётся
+    # из X-Forwarded-For. Без прокси этот заголовок может подделать сам клиент.
+    trust_proxy_headers: bool = False
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     webhook_url: str | None = None

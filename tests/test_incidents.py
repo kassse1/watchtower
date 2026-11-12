@@ -64,3 +64,14 @@ def test_expired_certificate_warns():
 def test_retry_delay_grows_exponentially_and_is_capped():
     assert [retry_delay(n) for n in (1, 2, 3, 4)] == [30, 60, 120, 240]
     assert retry_delay(50) == 3600
+
+
+def test_stale_alert_rules():
+    from app.incidents import is_stale_alert
+
+    assert not is_stale_alert("down", "down")
+    assert is_stale_alert("down", "up")  # опоздавшее «упал» после восстановления
+    assert not is_stale_alert("recovered", "up")
+    assert is_stale_alert("recovered", "down")  # опоздавшее «поднялся», когда снова лежит
+    assert not is_stale_alert("tls_expiring", "up")
+    assert not is_stale_alert("tls_expiring", "down")

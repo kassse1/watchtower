@@ -43,6 +43,20 @@ def should_warn_tls(
     return expires_at - now <= timedelta(days=warn_days)
 
 
+def is_stale_alert(kind: str, monitor_status: str) -> bool:
+    """Алерт устарел, если к моменту доставки он противоречит текущему состоянию.
+
+    Доставка может задержаться (канал лежал, шли повторы). Сообщение «сайт упал»,
+    пришедшее после восстановления, вводит в заблуждение сильнее, чем его отсутствие:
+    о сбое человек всё равно узнает из сообщения о восстановлении с длительностью простоя.
+    """
+    if kind == "down":
+        return monitor_status != "down"
+    if kind == "recovered":
+        return monitor_status == "down"
+    return False
+
+
 def retry_delay(attempts: int, base: float = 30.0, cap: float = 3600.0) -> float:
     """Экспоненциальная задержка повторной доставки алерта: 30с, 1м, 2м, … до часа."""
     return float(min(cap, base * 2 ** max(0, attempts - 1)))
