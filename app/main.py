@@ -1,12 +1,13 @@
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api import ops_router, public_router, router
@@ -44,6 +45,39 @@ app = FastAPI(title="Watchtower", version="0.2.0", lifespan=lifespan)
 app.include_router(router)
 app.include_router(public_router)
 app.include_router(ops_router)
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+# Скрипты — только со своего домена: даже если на страницу попадёт чужая разметка,
+# браузер не выполнит внедрённый код. Стили допускают inline: интерфейс задаёт
+# через атрибут style координаты и задержки анимации.
+CSP = (
+    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; "
+    "frame-ancestors 'none'"
+)
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",  # защита от кликджекинга для старых браузеров
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+}
+
+
+@app.middleware("http")
+async def security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    path = request.url.path
+    # Swagger UI грузит свои скрипты с CDN, поэтому на /docs строгая политика не ставится.
+    if not path.startswith(("/docs", "/redoc", "/openapi.json")):
+        response.headers.setdefault("Content-Security-Policy", CSP)
+    if path.startswith("/static/") or path in ("/", "/status"):
+        # Всегда сверяться с сервером: после выкладки не останется старых скриптов в кэше.
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.get("/health", include_in_schema=False)

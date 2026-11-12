@@ -204,3 +204,37 @@ async def test_pages_and_health(api):
     assert "Watchtower" in (await api.get("/")).text
     assert "Статус сервисов" in (await api.get("/status")).text
     assert (await api.get("/health")).json() == {"status": "ok"}
+
+
+async def test_security_headers(api):
+    r = await api.get("/")
+    csp = r.headers["content-security-policy"]
+    assert "script-src 'self'" in csp and "frame-ancestors 'none'" in csp
+    assert (
+        "unsafe-inline" not in csp.split("script-src")[1].split(";")[0]
+    )  # скриптам inline запрещён
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["x-frame-options"] == "DENY"
+    assert r.headers["cache-control"] == "no-cache"
+    # заголовки стоят и на ответах API, включая ошибки
+    assert (await api.get("/api/monitors/999")).headers["x-content-type-options"] == "nosniff"
+    # Swagger UI грузит скрипты с CDN, строгая политика его бы сломала
+    assert "content-security-policy" not in (await api.get("/docs")).headers
+
+
+async def test_pages_work_under_the_csp(api):
+    """Политика запрещает встроенные скрипты и обработчики. Если кто-то добавит их
+    в разметку, страница молча сломается у пользователя — тест ловит это раньше."""
+    import re
+
+    for page, assets in (
+        ("/", ("dashboard.js", "dashboard.css")),
+        ("/status", ("status.js", "status.css")),
+    ):
+        html = (await api.get(page)).text
+        assert not re.search(r"<script(?![^>]*\bsrc=)", html), page
+        assert not re.search(r"\son\w+\s*=", html), page
+        assert "javascript:" not in html
+        for asset in assets:
+            assert f"/static/{asset}" in html
+            assert (await api.get(f"/static/{asset}")).status_code == 200
